@@ -19,6 +19,11 @@ module Maze =
             | Empty -> ' '
             | Wall -> '+'
             | Exit -> 'x'
+    type Path =
+        {
+            Value : Coord
+            Branches : List<Path>
+        }
     
     let Tiles = [
         for i in 1 .. Width ->
@@ -32,44 +37,79 @@ module Maze =
     ]
 
     let private generateTiles paths =
-        let tiles = Array2D.init Width Height (fun i j -> Wall)
+        let tiles = Array2D.init Width Height (fun i j ->
+            if i % 2 = 0 && j % 2 = 0 then
+                Empty
+            else
+                Wall
+        )
         for path in paths do
-            tiles.[path.X,path.Y] <- Empty
+            for branch in path.Branches do
+                let x = path.Value.X + branch.Value.X
+                let y = path.Value.Y + branch.Value.Y
+                tiles.[x,y] <- Empty
         tiles
 
     let private roll (rng:System.Random) faces = (rng.Next() % faces)
-    let rec private extendWalkRec walk direction i steps =
-        match i with
-            | 0 -> walk
-            | _ -> extendWalkRec ({ X = (List.head walk).X + direction.X; Y = (List.head walk).Y + direction.Y }::walk) direction (i - 1) steps
-    let private extendWalk walk direction steps =
-        extendWalkRec walk direction steps steps
-    let rec private randomWalkRec rng walk steps stepSizeMin stepSizeRange =
-        match steps with
-            | 0 -> walk
-            | _ ->
-                let direction = match roll rng 4 with
-                                | 0 -> { X = 1; Y = 0 }
-                                | 1 -> { X = -1; Y = 0 }
-                                | 2 -> { X = 0; Y = 1 }
-                                | 3 -> { X = 0; Y = -1 }
-                                | _ -> { X = 0; Y = 0 }
-                let variedStepSize = (rng.Next() % stepSizeRange) + stepSizeMin
-                let extendedWalk = extendWalk walk direction variedStepSize
-                (randomWalkRec rng extendedWalk (steps - 1) stepSizeMin stepSizeRange)
-    let private randomWalk rng start steps stepSizeMin stepSizeRange =
-        randomWalkRec rng [start] steps stepSizeMin stepSizeRange
-
     
-    let private randomWalkMaze seed =
-        let openTiles =
-            randomWalk (System.Random(seed)) { X = Width / 2; Y = Height / 2 } 3600 3 7
-            |> List.distinct
-            |> List.filter (fun c -> c.X >= 0 && c.X < Width && c.Y >= 0 && c.Y < Height)
-        generateTiles openTiles
+    let private getDirectionOptions position mapWidth mapHeight =
+        [
+            if position.Y <> (mapHeight - 1) then yield { X = position.X; Y = position.Y + 1 }
+            if position.Y <> 0 then yield { X = position.X; Y = position.Y - 1 }
+            if position.X <> (mapWidth - 1) then yield { X = position.X + 1; Y = position.Y }
+            if position.X <> 0 then yield { X = position.X - 1; Y = position.Y }
+        ]
+    let private getStep rng position mapWidth mapHeight =
+        let directionOptions = getDirectionOptions position mapWidth mapHeight
+        directionOptions.[(roll rng directionOptions.Length)]
+    let rec private loopErasedRandomWalkRec rng (walk:List<Coord>) (walkLookup:Set<Coord>) mapWidth mapHeight (terminals:Set<Coord>) =
+        if terminals.Contains walk.Head then
+            walk.Tail
+        elif walkLookup.Contains walk.Head then
+            // erase the loop
+            let loopErasedWalk = walk |> List.tail |> List.skipWhile (fun x -> x <> walk.Head)
+            // include all steps in the path except the last one
+            let loopErasedWalkLookup = set loopErasedWalk.Tail
+            loopErasedRandomWalkRec rng loopErasedWalk loopErasedWalkLookup mapWidth mapHeight terminals
+        else
+            // extend the walk, add the previous step to the lookup
+            let step = getStep rng walk.Head mapWidth mapHeight
+            loopErasedRandomWalkRec rng (step::walk) (walkLookup.Add walk.Head) mapWidth mapHeight terminals
+    let private loopErasedRandomWalk rng start mapWidth mapHeight terminals =
+        loopErasedRandomWalkRec rng [start] (set []) mapWidth mapHeight terminals
+
+    let private getPotentialBranches path mapWidth mapHeight =
+        getDirectionOptions path.Value mapWidth mapHeight
+        |> List.filter (fun coord -> (not (List.contains coord (path.Branches |> List.map (fun branch -> branch.Value)))))
+    let rec private getPathStart rng mapWidth mapHeight (paths:Path[]) =
+        let index = roll rng paths.Length
+        let start = paths.[index]
+        let potentialBranches = getPotentialBranches start mapWidth mapHeight
+        if potentialBranches.IsEmpty then
+            getPathStart rng mapWidth mapHeight paths
+        else
+            (index,potentialBranches.[roll rng potentialBranches.Length])
+    let private convertWalkToPath branchingPath coords =
+        coords
+        |> List.fold (fun acc elem -> { Value = elem; Branches = [if not acc.IsEmpty then yield acc.Head else yield branchingPath] }::acc) []
+        |> List.fold (fun acc elem -> { Value = elem.Value; Branches = if acc.IsEmpty then elem.Branches else acc.Head::elem.Branches }::acc) []
+    let rec private wilsonMazeRec rng width height (paths:Path[]) =
+        if paths.Length = width * height then
+            paths
+        else
+            let test = paths.Length
+            let (branchingPathIndex,start) = getPathStart rng width height paths
+            let terminals = set (Array.map (fun path -> path.Value) paths)
+            let branchingPath = paths.[branchingPathIndex]
+            let walk = convertWalkToPath branchingPath (loopErasedRandomWalk rng start width height terminals)
+            if not walk.IsEmpty then
+                paths.[branchingPathIndex] <- {branchingPath with Branches = walk.Head::branchingPath.Branches}
+            wilsonMazeRec rng width height (Array.append paths (List.toArray walk))
+    let private wilsonMaze seed =
+        generateTiles (wilsonMazeRec (System.Random(seed)) (Width / 2) (Height / 2) [|{ Value = { X = 0; Y = 0 }; Branches = [] }|])
 
     let AsciiMap seed =
-        let maze = randomWalkMaze seed
+        let maze = wilsonMaze seed
         new string(
             [|for i in 0 .. (Width - 1) do
                 for j in 0 .. (Height - 1) do
