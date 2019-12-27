@@ -10,32 +10,33 @@ module Maze =
             X : int
             Y : int
         }
+    //Avoid using 0 as these values will be represented as strings later on
     type Tile =
-        | Empty = 0
-        | Wall = 1
-        | Exit = 2
+        | Empty = 1
+        | Wall = 2
     let TileToChar tile =
         match tile with
         | Tile.Empty -> ' '
         | Tile.Wall -> '+'
-        | Tile.Exit -> 'x'
         | _ -> '!'
     type Path =
         {
             Value : Coord
             Branches : List<Path>
         }
-    
-    let Tiles = [
-        for i in 1 .. Width ->
-            [for j in 1 .. Height ->
-                match i with
-                | 1 | Width -> Tile.Wall
-                | _ -> match j with
-                        | 1 | Height -> Tile.Wall
-                        | _ -> Tile.Empty
-            ]
-    ]
+    type Tiles = | Tiles of byte[]
+    type Direction =
+        | Up
+        | Down
+        | Left
+        | Right
+    let StringToDirection (str:string) =
+        match str.ToLower() with
+        | "up" -> Some(Up)
+        | "down" -> Some(Down)
+        | "left" -> Some(Left)
+        | "right" -> Some(Right)
+        | _ -> None
 
     let private generateTiles paths =
         let tiles = Array2D.init Width Height (fun i j ->
@@ -130,7 +131,30 @@ module Maze =
         |])
     let ByteArray seed =
         let maze = cachedMap seed
-        [|for i in 0 .. (Width - 1) do
-            for j in 0 .. (Height - 1) do
-                yield byte maze.[i,j]|]
-        |> Array.map char
+        Tiles (
+            [|for i in 0 .. (Width - 1) do
+                for j in 0 .. (Height - 1) do
+                    yield byte maze.[i,j]|]
+            |> Array.map byte
+        )
+    
+    let GetTile (tiles:Tiles) position direction =
+        let dirCoord = match direction with
+                       | Up -> { X = 0; Y = 1 }
+                       | Down -> { X = 0; Y = -1 }
+                       | Left -> { X = -1; Y = 0 }
+                       | Right -> { X = 1; Y = 0 }
+        let movedPosition = position + dirCoord.X * Height + dirCoord.Y
+        let (Tiles bytes) = tiles
+        let wrappedMovedPosition =
+            if movedPosition < 0 then movedPosition + bytes.Length
+            elif movedPosition >= bytes.Length then movedPosition - bytes.Length
+            else movedPosition
+        (wrappedMovedPosition,(enum (bytes.[movedPosition] |> int) : Tile))
+    let rec GetRandomEmptySpace (tiles:Tiles) =
+        let (Tiles bytes) = tiles
+        let position = roll (System.Random()) bytes.Length
+        if (enum (bytes.[position] |> int)) = Tile.Empty then
+            position
+        else
+            GetRandomEmptySpace tiles

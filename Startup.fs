@@ -3,7 +3,6 @@ namespace MazeOnline
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Hosting
 open Microsoft.AspNetCore.Http
-open Microsoft.AspNetCore.Rewrite
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Hosting
 
@@ -25,5 +24,15 @@ type Startup() =
 
         app.UseEndpoints(fun endpoints ->
             endpoints.MapGet("/maze/ascii/{seed}", fun context -> context.Response.WriteAsync(Maze.AsciiMap (int ((context.Request.RouteValues.Item "seed") :?> string)))) |> ignore
-            endpoints.MapGet("/maze/{seed}", fun context -> context.Response.WriteAsync(new string(Maze.ByteArray (int ((context.Request.RouteValues.Item "seed") :?> string))))) |> ignore
+            endpoints.MapGet("/maze/{seed}", fun context ->
+                let (Maze.Tiles bytes) = Maze.ByteArray (int ((context.Request.RouteValues.Item "seed") :?> string))
+                let byteStr = new string(bytes |> Array.map char)
+                context.Response.WriteAsync(byteStr)) |> ignore
+            endpoints.MapGet("/game/new/{seed}", fun context ->
+                let seed = (int ((context.Request.RouteValues.Item "seed") :?> string))
+                context.Response.WriteAsync(new string(Game.StartGame seed))) |> ignore
+            endpoints.MapGet("/game/{playerId}/move/{direction}", fun context ->
+                let direction = (Maze.StringToDirection ((context.Request.RouteValues.Item "direction") :?> string)).Value
+                let playerId = int (context.Request.RouteValues.Item "playerId" :?> string)
+                context.Response.WriteAsync(new string(Game.Move playerId direction))) |> ignore
             ) |> ignore
