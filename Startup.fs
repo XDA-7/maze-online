@@ -35,4 +35,6 @@ type Startup() =
                 let direction = (Maze.StringToDirection ((context.Request.RouteValues.Item "direction") :?> string)).Value
                 let playerId = int (context.Request.RouteValues.Item "playerId" :?> string)
                 context.Response.WriteAsync(new string(Game.Move playerId direction))) |> ignore
+            endpoints.MapGet("/dt/test", fun context ->
+                context.Response.WriteAsync(Triangulation.TestTriangulation)) |> ignore
             ) |> ignore
