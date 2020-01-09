@@ -19,7 +19,6 @@ type Startup() =
             app.UseDeveloperExceptionPage() |> ignore
 
         app.UseStaticFiles() |> ignore
-
         app.UseRouting() |> ignore
 
         app.UseEndpoints(fun endpoints ->
@@ -36,5 +35,6 @@ type Startup() =
                 let playerId = int (context.Request.RouteValues.Item "playerId" :?> string)
                 context.Response.WriteAsync(new string(Game.Move playerId direction))) |> ignore
             endpoints.MapGet("/dt/test", fun context ->
-                context.Response.WriteAsync(Triangulation.TestTriangulation)) |> ignore
+                context.Response.Headers.AppendCommaSeparatedValues("Cache-Control", [|"no-cache";"no-store"|])
+                context.Response.WriteAsync(Triangulation.TestTriangulation())) |> ignore
             ) |> ignore

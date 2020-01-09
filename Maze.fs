@@ -158,3 +158,14 @@ module Maze =
             position
         else
             GetRandomEmptySpace tiles
+    let rec private getEmptySpaceNearStartRec (bytes: byte[]) x y =
+        let position = x * Height + y
+        if (enum (bytes.[position] |> int)) = Tile.Empty then
+            position
+        elif x < y then
+            getEmptySpaceNearStartRec bytes (x + 1) y
+        else
+            getEmptySpaceNearStartRec bytes x (y + 1)
+    let GetEmptySpaceNearStart (tiles:Tiles) =
+        let (Tiles bytes) = tiles
+        getEmptySpaceNearStartRec bytes 0 0

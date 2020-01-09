@@ -21,7 +21,7 @@ namespace MazeOnline
             let maze = Maze.ByteArray seed
             let state = {
                 Maze = maze
-                PlayerPosition = Maze.GetRandomEmptySpace maze
+                PlayerPosition = Maze.GetEmptySpaceNearStart maze
                 Destination = Maze.GetRandomEmptySpace maze
             }
             playerId <- playerId + 1

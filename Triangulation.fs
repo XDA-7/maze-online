@@ -122,8 +122,8 @@ module Triangulation =
             points |> Seq.map PointAsJson
         ) +
         "]}"
-    let TestTriangulation =
-        let rng = System.Random(1)
+    let rng = System.Random()
+    let TestTriangulation () =
         let points = (
             [ for i in 1 .. 200 do { X = rng.NextDouble() * 800.0; Y = rng.NextDouble() * 800.0 } ]
             |> List.distinct
@@ -132,7 +132,3 @@ module Triangulation =
         |> DelaunayTriangulation
         |> Seq.map (function |CCWTriangle(t) -> t)
         |> (fun x -> TriangulationAsJson x points)
-
-// get all triangles where the point is in the circumcircle of the triangle, remove them from the triangulation
-// get all edges of the triangles that are not shared by any two triangles (this is the outer edge of the polygonal hole)
-// add a new triangle to the triangulation for each edge, consisting of the edge and the inserted point
